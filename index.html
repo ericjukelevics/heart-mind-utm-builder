@@ -229,9 +229,14 @@
           const generateUTMUrl = (campaign) => {
             if (!campaign.url || !campaign.source || !campaign.medium) return '';
             
-            const baseUrl = campaign.url.includes('?') 
-              ? campaign.url.split('?')[0] 
-              : campaign.url;
+            // Ensure URL has https:// prefix
+            let baseUrl = campaign.url.trim();
+            if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+              baseUrl = 'https://' + baseUrl;
+            }
+            
+            // Remove any existing query parameters
+            baseUrl = baseUrl.includes('?') ? baseUrl.split('?')[0] : baseUrl;
             
             const params = new URLSearchParams();
             if (campaign.source) params.append('utm_source', campaign.source);
