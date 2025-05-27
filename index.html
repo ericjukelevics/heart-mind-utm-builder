@@ -197,7 +197,25 @@
             }
           };
 
-          const addCampaign = (tab) => {
+          const saveSettings = async (newSettings) => {
+            try {
+              await supabaseClient.request('settings', { method: 'DELETE' });
+              
+              const settingsArray = [];
+              newSettings.sources.forEach(source => settingsArray.push({ type: 'source', value: source }));
+              newSettings.mediums.forEach(medium => settingsArray.push({ type: 'medium', value: medium }));
+              newSettings.campaigns.forEach(campaign => settingsArray.push({ type: 'campaign', value: campaign }));
+              
+              await supabaseClient.request('settings', {
+                method: 'POST',
+                body: JSON.stringify(settingsArray)
+              });
+              
+            } catch (error) {
+              console.error('Error saving settings:', error);
+              throw error;
+            }
+          };
             const newCampaign = {
               id: Date.now(),
               url: '',
@@ -516,6 +534,155 @@
                     )}
                   </div>
                 </div>
+
+                {/* Settings Modal */}
+                {showSettings && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+                      <h2 className="text-2xl font-bold mb-6">Traffic Tag Settings</h2>
+                      <p className="text-gray-600 mb-6">
+                        Customize the source, medium, and campaign options that appear in your dropdowns.
+                      </p>
+                      
+                      <div className="grid md:grid-cols-3 gap-6">
+                        {/* Sources */}
+                        <div>
+                          <h3 className="font-semibold mb-3">Sources (brands)</h3>
+                          <div className="space-y-2">
+                            {settings.sources.map((source, index) => (
+                              <div key={index} className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={source}
+                                  onChange={(e) => {
+                                    const newSources = [...settings.sources];
+                                    newSources[index] = e.target.value;
+                                    setSettings(prev => ({ ...prev, sources: newSources }));
+                                  }}
+                                  className="flex-1 p-2 border border-gray-300 rounded-lg"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const newSources = settings.sources.filter((_, i) => i !== index);
+                                    setSettings(prev => ({ ...prev, sources: newSources }));
+                                  }}
+                                  className="p-2 text-red-500 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => setSettings(prev => ({ ...prev, sources: [...prev.sources, ''] }))}
+                              className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors"
+                            >
+                              <Plus className="w-4 h-4 inline mr-2" />
+                              Add Source
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Mediums */}
+                        <div>
+                          <h3 className="font-semibold mb-3">Mediums (types)</h3>
+                          <div className="space-y-2">
+                            {settings.mediums.map((medium, index) => (
+                              <div key={index} className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={medium}
+                                  onChange={(e) => {
+                                    const newMediums = [...settings.mediums];
+                                    newMediums[index] = e.target.value;
+                                    setSettings(prev => ({ ...prev, mediums: newMediums }));
+                                  }}
+                                  className="flex-1 p-2 border border-gray-300 rounded-lg"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const newMediums = settings.mediums.filter((_, i) => i !== index);
+                                    setSettings(prev => ({ ...prev, mediums: newMediums }));
+                                  }}
+                                  className="p-2 text-red-500 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => setSettings(prev => ({ ...prev, mediums: [...prev.mediums, ''] }))}
+                              className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors"
+                            >
+                              <Plus className="w-4 h-4 inline mr-2" />
+                              Add Medium
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Campaigns */}
+                        <div>
+                          <h3 className="font-semibold mb-3">Campaigns</h3>
+                          <div className="space-y-2">
+                            {settings.campaigns.map((campaignOption, index) => (
+                              <div key={index} className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={campaignOption}
+                                  onChange={(e) => {
+                                    const newCampaigns = [...settings.campaigns];
+                                    newCampaigns[index] = e.target.value;
+                                    setSettings(prev => ({ ...prev, campaigns: newCampaigns }));
+                                  }}
+                                  className="flex-1 p-2 border border-gray-300 rounded-lg"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const newCampaigns = settings.campaigns.filter((_, i) => i !== index);
+                                    setSettings(prev => ({ ...prev, campaigns: newCampaigns }));
+                                  }}
+                                  className="p-2 text-red-500 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => setSettings(prev => ({ ...prev, campaigns: [...prev.campaigns, ''] }))}
+                              className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors"
+                            >
+                              <Plus className="w-4 h-4 inline mr-2" />
+                              Add Campaign
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
+                        <button
+                          onClick={() => setShowSettings(false)}
+                          className="px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await saveSettings(settings);
+                              setShowSettings(false);
+                              setLastSaved(new Date());
+                              alert('Settings saved successfully!');
+                            } catch (error) {
+                              alert('Failed to save settings. Please try again.');
+                            }
+                          }}
+                          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
+                        >
+                          Save Settings
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );
