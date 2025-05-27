@@ -217,13 +217,145 @@
                 campaign.id === id ? { ...campaign, [field]: value } : campaign
               )
             }));
+            
+            // Auto-save after a short delay
+            setTimeout(async () => {
+              try {
+                setIsSaving(true);
+                const updatedCampaign = campaigns[tab].find(c => c.id === id);
+                if (updatedCampaign) {
+                  const campaignToSave = { ...updatedCampaign, [field]: value };
+                  await saveCampaign(campaignToSave, tab);
+                  setLastSaved(new Date());
+                }
+              } catch (error) {
+                console.error('Auto-save failed:', error);
+              } finally {
+                setIsSaving(false);
+              }
+            }, 1000);
           };
 
-          const deleteCampaign = (tab, id) => {
-            setCampaigns(prev => ({
-              ...prev,
-              [tab]: prev[tab].filter(campaign => campaign.id !== id)
-            }));
+          const saveCampaign = async (campaign, tab) => {
+            try {
+              const campaignData = {
+                tab,
+                url: campaign.url,
+                source: campaign.source,
+                medium: campaign.medium,
+                campaign: campaign.campaign,
+                term: campaign.term,
+                hmi_affiliate: campaign.hmiAffiliate,
+                notes: campaign.notes
+              };
+
+              if (campaign.id && campaign.id > 1000000000000) {
+                // Update existing campaign
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/campaigns?id=eq.${campaign.id}`, {
+                  method: 'PATCH',
+                  headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                  },
+                  body: JSON.stringify(campaignData)
+                });
+                
+                if (!response.ok) throw new Error(`Save failed: ${response.statusText}`);
+              } else {
+                // Create new campaign
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/campaigns`, {
+                  method: 'POST',
+                  headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                  },
+                  body: JSON.stringify(campaignData)
+                });
+                
+                if (!response.ok) throw new Error(`Save failed: ${response.statusText}`);
+                
+                const result = await response.json();
+                if (result && result[0]) {
+                  // Update the campaign with the real database ID
+                  setCampaigns(prev => ({
+                    ...prev,
+                    [tab]: prev[tab].map(c => 
+                      c.id === campaign.id ? { ...c, id: result[0].id } : c
+                    )
+                  }));
+                  return result[0].id;
+                }
+              }
+              
+              return campaign.id;
+            } catch (error) {
+              console.error('Error saving campaign:', error);
+              throw error;
+            }
+          };
+
+          const deleteCampaign = async (tab, id) => {
+            try {
+              if (id > 1000000000000) {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/campaigns?id=eq.${id}`, {
+                  method: 'DELETE',
+                  headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                  }
+                });
+                
+                if (!response.ok) throw new Error(`Delete failed: ${response.statusText}`);
+              }
+              
+              setCampaigns(prev => ({
+                ...prev,
+                [tab]: prev[tab].filter(campaign => campaign.id !== id)
+              }));
+              
+              setLastSaved(new Date());
+            } catch (error) {
+              console.error('Error deleting campaign:', error);
+            }
+          };
+
+          const saveSettings = async (newSettings) => {
+            try {
+              // Delete existing settings
+              await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
+                method: 'DELETE',
+                headers: {
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                }
+              });
+              
+              // Insert new settings
+              const settingsArray = [];
+              newSettings.sources.forEach(source => settingsArray.push({ type: 'source', value: source }));
+              newSettings.mediums.forEach(medium => settingsArray.push({ type: 'medium', value: medium }));
+              newSettings.campaigns.forEach(campaign => settingsArray.push({ type: 'campaign', value: campaign }));
+              
+              const response = await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
+                method: 'POST',
+                headers: {
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(settingsArray)
+              });
+              
+              if (!response.ok) throw new Error(`Settings save failed: ${response.statusText}`);
+              
+            } catch (error) {
+              console.error('Error saving settings:', error);
+              throw error;
+            }
           };
 
           const generateUTMUrl = (campaign) => {
@@ -282,6 +414,19 @@
                       <p className="text-sm text-blue-600 mt-2">{connectionStatus}</p>
                     </div>
                     <div className="flex gap-3">
+                      <div className="text-sm text-gray-500 flex items-center gap-2">
+                        {isSaving ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                            Saving...
+                          </>
+                        ) : lastSaved ? (
+                          <>
+                            <div className="w-4 h-4 text-green-600">✓</div>
+                            Saved {lastSaved.toLocaleTimeString()}
+                          </>
+                        ) : null}
+                      </div>
                       <button
                         onClick={() => setShowSettings(true)}
                         className="bg-gray-100 hover:bg-gray-200 p-3 rounded-xl transition-colors"
@@ -583,10 +728,19 @@
 
                       <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
                         <button
-                          onClick={() => setShowSettings(false)}
-                          className="px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                          onClick={async () => {
+                            try {
+                              await saveSettings(settings);
+                              setShowSettings(false);
+                              setLastSaved(new Date());
+                              alert('Settings saved successfully!');
+                            } catch (error) {
+                              alert('Failed to save settings. Please try again.');
+                            }
+                          }}
+                          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
                         >
-                          Close
+                          Save Settings
                         </button>
                       </div>
                     </div>
