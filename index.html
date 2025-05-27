@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heart Mind UTM Builder & Traffic Tracker</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { Plus, Copy, Trash2, Settings, Link, Download, Upload, Save, RefreshCw } = lucide;
+
+        // Supabase configuration
+        const SUPABASE_URL = 'https://hzacrecdazrbgunafxyk.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6YWNyZWNkYXpyYmd1bmFmeHlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyNzYyOTMsImV4cCI6MjA2Mzg1MjI5M30.NULWmPxHRw86FldSuMgv3otvQZUVa7wWQgj0nwa8kpk';
+
+        // Simple Supabase client
+        const supabaseClient = {
+          url: SUPABASE_URL,
+          key: SUPABASE_ANON_KEY,
+          
+          async request(endpoint, options = {}) {
+            const url = `${this.url}/rest/v1/${endpoint}`;
+            const response = await fetch(url, {
+              headers: {
+                'apikey': this.key,
+                'Authorization': `Bearer ${this.key}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation',
+                ...options.headers
+              },
+              ...options
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Supabase error: ${response.statusText}`);
+            }
+            
+            return response.json();
+          }
+        };
+
+        function UTMBuilder() {
+          // Default settings for sources and mediums
+          const [settings, setSettings] = useState({
+            sources: [],
+            mediums: [],
+            campaigns: []
+          });
+
+          // Active tab
+          const [activeTab, setActiveTab] = useState('Email');
+
+          // Campaign data organized by tabs
+          const [campaigns, setCampaigns] = useState({
+            'Email': [],
+            'Custom': []
+          });
+
+          // Loading and saving states
+          const [isLoading, setIsLoading] = useState(true);
+          const [isSaving, setIsSaving] = useState(false);
+          const [lastSaved, setLastSaved] = useState(null);
+
+          // Settings modal
+          const [showSettings, setShowSettings] = useState(false);
+
+          // Load data from Supabase on component mount
+          useEffect(() => {
+            loadData();
+          }, []);
+
+          // Load campaigns and settings from Supabase
+          const loadData = async () => {
+            try {
+              setIsLoading(true);
+              
+              // Load campaigns
+              const campaignsData = await supabaseClient.request('campaigns?select=*');
+              const campaignsByTab = {
+                'Email': [],
+                'Custom': []
+              };
+              
+              campaignsData.forEach(campaign => {
+                if (campaignsByTab[campaign.tab]) {
+                  campaignsByTab[campaign.tab].push({
+                    id: campaign.id,
+                    url: campaign.url || '',
+                    source: campaign.source || '',
+                    medium: campaign.medium || '',
+                    campaign: campaign.campaign || '',
+                    term: campaign.term || '',
+                    hmiAffiliate: campaign.hmi_affiliate || false,
+                    notes: campaign.notes || ''
+                  });
+                }
+              });
+              
+              setCampaigns(campaignsByTab);
+              
+              // Load settings
+              const settingsData = await supabaseClient.request('settings?select=*');
+              const settingsByType = {
+                sources: [],
+                mediums: [],
+                campaigns: []
+              };
+              
+              settingsData.forEach(setting => {
+                if (setting.type === 'source') settingsByType.sources.push(setting.value);
+                if (setting.type === 'medium') settingsByType.mediums.push(setting.value);
+                if (setting.type === 'campaign') settingsByType.campaigns.push(setting.value);
+              });
+              
+              setSettings(settingsByType);
+              setLastSaved(new Date());
+              
+            } catch (error) {
+              console.error('Error loading data:', error);
+              alert('Failed to load data from cloud. Please check your connection.');
+            } finally {
+              setIsLoading(false);
+            }
+          };
+
+          // Save campaign to Supabase
+          const saveCampaign = async (campaign, tab) => {
+            try {
+              const campaignData = {
+                tab,
+                url: campaign.url,
+                source: campaign.source,
+                medium: campaign.medium,
+                campaign: campaign.campaign,
+                term: campaign.term,
+                hmi_affiliate: campaign.hmiAffiliate,
+                notes: campaign.notes
+              };
+
+              if (campaign.id && campaign.id > 1000000000000) {
+                // Update existing campaign
+                await supabaseClient.request(`campaigns?id=eq.${campaign.id}`, {
+                  method: 'PATCH',
+                  body: JSON.stringify(campaignData)
+                });
+              } else {
+                // Create new campaign
+                const result = await supabaseClient.request('campaigns', {
+                  method: 'POST',
+                  body: JSON.stringify(campaignData)
+                });
+                return result[0].id;
+              }
+              
+              return campaign.id;
+            } catch (error) {
+              console.error('Error saving campaign:', error);
+              throw error;
+            }
+          };
+
+          // Save settings to Supabase
+          const saveSettings = async (newSettings) => {
+            try {
+              // Delete existing settings
+              await supabaseClient.request('settings', { method: 'DELETE' });
+              
+              // Insert new settings
+              const settingsArray = [];
+              newSettings.sources.forEach(source => settingsArray.push({ type: 'source', value: source }));
+              newSettings.mediums.forEach(medium => settingsArray.push({ type: 'medium', value: medium }));
+              newSettings.campaigns.forEach(campaign => settingsArray.push({ type: 'campaign', value: campaign }));
+              
+              await supabaseClient.request('settings', {
+                method: 'POST',
+                body: JSON.stringify(settingsArray)
+              });
+              
+            } catch (error) {
+              console.error('Error saving settings:', error);
+              throw error;
+            }
+          };
+
+          // Add new campaign row
+          const addCampaign = async (tab) => {
+            const newCampaign = {
+              id: Date.now(), // Temporary ID
+              url: '',
+              source: '',
+              medium: '',
+              campaign: '',
+              term: '',
+              notes: '',
+              hmiAffiliate: false
+            };
+            
+            // Update local state immediately
+            setCampaigns(prev => ({
+              ...prev,
+              [tab]: [...prev[tab], newCampaign]
+            }));
+          };
+
+          // Update campaign
+          const updateCampaign = async (tab, id, field, value) => {
+            setCampaigns(prev => ({
+              ...prev,
+              [tab]: prev[tab].map(campaign => 
+                campaign.id === id ? { ...campaign, [field]: value } : campaign
+              )
+            }));
+            
+            // Auto-save after a short delay
+            setTimeout(async () => {
+              try {
+                setIsSaving(true);
+                const campaign = campaigns[tab].find(c => c.id === id);
+                if (campaign) {
+                  const updatedCampaign = { ...campaign, [field]: value };
+                  const savedId = await saveCampaign(updatedCampaign, tab);
+                  
+                  // Update with real ID if it was a new campaign
+                  if (savedId !== id) {
+                    setCampaigns(prev => ({
+                      ...prev,
+                      [tab]: prev[tab].map(c => 
+                        c.id === id ? { ...c, id: savedId } : c
+                      )
+                    }));
+                  }
+                  
+                  setLastSaved(new Date());
+                }
+              } catch (error) {
+                alert('Failed to save changes. Please try again.');
+              } finally {
+                setIsSaving(false);
+              }
+            }, 1000);
+          };
+
+          // Delete campaign
+          const deleteCampaign = async (tab, id) => {
+            try {
+              if (id > 1000000000000) {
+                await supabaseClient.request(`campaigns?id=eq.${id}`, { method: 'DELETE' });
+              }
+              
+              setCampaigns(prev => ({
+                ...prev,
+                [tab]: prev[tab].filter(campaign => campaign.id !== id)
+              }));
+              
+              setLastSaved(new Date());
+            } catch (error) {
+              console.error('Error deleting campaign:', error);
+              alert('Failed to delete campaign. Please try again.');
+            }
+          };
+
+          // Generate UTM URL
+          const generateUTMUrl = (campaign) => {
+            if (!campaign.url || !campaign.source || !campaign.medium) return '';
+            
+            const baseUrl = campaign.url.includes('?') 
+              ? campaign.url.split('?')[0] 
+              : campaign.url;
+            
+            const params = new URLSearchParams();
+            if (campaign.source) params.append('utm_source', campaign.source);
+            if (campaign.medium) params.append('utm_medium', campaign.medium);
+            if (campaign.campaign) params.append('utm_campaign', campaign.campaign);
+            if (campaign.term) params.append('utm_term', campaign.term);
+            
+            return `${baseUrl}?${params.toString()}`;
+          };
+
+          // Generate final URL with custom parameters
+          const generateFinalUrl = (campaign) => {
+            const utmUrl = generateUTMUrl(campaign);
+            if (!utmUrl) return '';
+            
+            let finalUrl = utmUrl;
+            finalUrl += '&he={email}';
+            if (campaign.campaign) {
+              finalUrl += `&el=${campaign.campaign}`;
+            }
+            if (campaign.hmiAffiliate) {
+              finalUrl += '#a_aid=hmi';
+            }
+            
+            return finalUrl;
+          };
+
+          // Copy to clipboard
+          const copyToClipboard = (text) => {
+            navigator.clipboard.writeText(text);
+          };
+
+          // Export data
+          const exportData = () => {
+            const dataStr = JSON.stringify({ campaigns, settings }, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'utm-campaigns.json';
+            link.click();
+            URL.revokeObjectURL(url);
+          };
+
+          // Import data
+          const importData = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                try {
+                  const data = JSON.parse(e.target.result);
+                  if (data.campaigns) setCampaigns(data.campaigns);
+                  if (data.settings) setSettings(data.settings);
+                } catch (error) {
+                  alert('Invalid file format');
+                }
+              };
+              reader.readAsText(file);
+            }
+          };
+
+          const tabs = ['Email', 'Custom'];
+
+          return React.createElement(
+            'div',
+            { className: 'min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4' },
+            React.createElement(
+              'div',
+              { className: 'max-w-7xl mx-auto' },
+              
+              // Header
+              React.createElement(
+                'div',
+                { className: 'bg-white rounded-2xl shadow-xl p-6 mb-6' },
+                React.createElement(
+                  'div',
+                  { className: 'flex justify-between items-center' },
+                  React.createElement(
+                    'div',
+                    null,
+                    React.createElement('h1', { className: 'text-3xl font-bold text-gray-900 mb-2' }, 'Heart Mind UTM Builder & Traffic Tracker'),
+                    React.createElement('p', { className: 'text-gray-600' }, 'Build, track, and manage your marketing campaign URLs')
+                  ),
+                  React.createElement(
+                    'div',
+                    { className: 'flex gap-3' },
+                    React.createElement(
+                      'div',
+                      { className: 'text-sm text-gray-500 flex items-center gap-2' },
+                      isSaving ? [
+                        React.createElement(RefreshCw, { key: 'spin', className: 'w-4 h-4 animate-spin' }),
+                        'Saving...'
+                      ] : lastSaved ? [
+                        React.createElement(Save, { key: 'save', className: 'w-4 h-4 text-green-600' }),
+                        `Saved ${lastSaved.toLocaleTimeString()}`
+                      ] : null
+                    ),
+                    React.createElement(
+                      'button',
+                      {
+                        onClick: () => setShowSettings(true),
+                        className: 'bg-gray-100 hover:bg-gray-200 p-3 rounded-xl transition-colors',
+                        title: 'Settings'
+                      },
+                      React.createElement(Settings, { className: 'w-5 h-5' })
+                    ),
+                    React.createElement(
+                      'button',
+                      {
+                        onClick: exportData,
+                        className: 'bg-green-100 hover:bg-green-200 text-green-700 p-3 rounded-xl transition-colors',
+                        title: 'Export Data'
+                      },
+                      React.createElement(Download, { className: 'w-5 h-5' })
+                    ),
+                    React.createElement(
+                      'label',
+                      {
+                        className: 'bg-blue-100 hover:bg-blue-200 text-blue-700 p-3 rounded-xl cursor-pointer transition-colors',
+                        title: 'Import Data'
+                      },
+                      React.createElement(Upload, { className: 'w-5 h-5' }),
+                      React.createElement('input', { type: 'file', accept: '.json', onChange: importData, className: 'hidden' })
+                    )
+                  )
+                )
+              ),
+
+              // Tabs and Content
+              React.createElement(
+                'div',
+                { className: 'bg-white rounded-2xl shadow-xl overflow-hidden' },
+                React.createElement(
+                  'div',
+                  { className: 'border-b border-gray-200' },
+                  React.createElement(
+                    'div',
+                    { className: 'flex overflow-x-auto' },
+                    tabs.map(tab =>
+                      React.createElement(
+                        'button',
+                        {
+                          key: tab,
+                          onClick: () => setActiveTab(tab),
+                          className: `px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors ${
+                            activeTab === tab
+                              ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
+                              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                          }`
+                        },
+                        `${tab} (${campaigns[tab]?.length || 0})`
+                      )
+                    )
+                  )
+                ),
+
+                // Campaign Table
+                React.createElement(
+                  'div',
+                  { className: 'p-6' },
+                  isLoading ?
+                    React.createElement(
+                      'div',
+                      { className: 'text-center py-12' },
+                      React.createElement(RefreshCw, { className: 'w-8 h-8 mx-auto mb-4 text-blue-500 animate-spin' }),
+                      React.createElement('p', { className: 'text-gray-500' }, 'Loading your campaigns from the cloud...')
+                    ) :
+                    [
+                      React.createElement(
+                        'div',
+                        { key: 'header', className: 'flex justify-between items-center mb-6' },
+                        React.createElement('h2', { className: 'text-xl font-semibold text-gray-900' }, `${activeTab} Campaigns`),
+                        React.createElement(
+                          'button',
+                          {
+                            onClick: () => addCampaign(activeTab),
+                            className: 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors'
+                          },
+                          React.createElement(Plus, { className: 'w-4 h-4' }),
+                          'Add Campaign'
+                        )
+                      ),
+
+                      campaigns[activeTab]?.length === 0 ?
+                        React.createElement(
+                          'div',
+                          { key: 'empty', className: 'text-center py-12 text-gray-500' },
+                          React.createElement(Link, { className: 'w-12 h-12 mx-auto mb-4 text-gray-300' }),
+                          React.createElement('p', null, 'No campaigns yet. Click "Add Campaign" to get started.')
+                        ) :
+                        React.createElement(
+                          'div',
+                          { key: 'table', className: 'overflow-x-auto' },
+                          React.createElement(
+                            'table',
+                            { className: 'w-full' },
+                            React.createElement(
+                              'thead',
+                              null,
+                              React.createElement(
+                                'tr',
+                                { className: 'border-b border-gray-200' },
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[200px]' }, 'URL'),
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]' }, 'Source*'),
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]' }, 'Medium*'),
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[150px]' }, 'Campaign*'),
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]' }, 'Term'),
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[100px]' }, 'HMI Affiliate?'),
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[300px]' }, 'UTM URL'),
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[350px]' }, 'Final URL'),
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[150px]' }, 'Notes'),
+                                React.createElement('th', { className: 'text-left py-3 px-4 font-medium text-gray-700 min-w-[80px]' }, 'Actions')
+                              )
+                            ),
+                            React.createElement(
+                              'tbody',
+                              null,
+                              campaigns[activeTab]?.map(campaign => {
+                                const utmUrl = generateUTMUrl(campaign);
+                                const finalUrl = generateFinalUrl(campaign);
+                                return React.createElement(
+                                  'tr',
+                                  { key: campaign.id, className: 'border-b border-gray-100 hover:bg-gray-50' },
+                                  
+                                  // URL
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    React.createElement('input', {
+                                      type: 'url',
+                                      value: campaign.url,
+                                      onChange: (e) => updateCampaign(activeTab, campaign.id, 'url', e.target.value),
+                                      placeholder: 'https://example.com',
+                                      className: 'w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                                    })
+                                  ),
+                                  
+                                  // Source
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    React.createElement(
+                                      'select',
+                                      {
+                                        value: campaign.source,
+                                        onChange: (e) => updateCampaign(activeTab, campaign.id, 'source', e.target.value),
+                                        className: 'w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                                      },
+                                      React.createElement('option', { value: '' }, 'Select source'),
+                                      settings.sources.map(source =>
+                                        React.createElement('option', { key: source, value: source }, source)
+                                      )
+                                    )
+                                  ),
+                                  
+                                  // Medium
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    React.createElement(
+                                      'select',
+                                      {
+                                        value: campaign.medium,
+                                        onChange: (e) => updateCampaign(activeTab, campaign.id, 'medium', e.target.value),
+                                        className: 'w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                                      },
+                                      React.createElement('option', { value: '' }, 'Select medium'),
+                                      settings.mediums.map(medium =>
+                                        React.createElement('option', { key: medium, value: medium }, medium)
+                                      )
+                                    )
+                                  ),
+                                  
+                                  // Campaign
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    React.createElement(
+                                      'select',
+                                      {
+                                        value: campaign.campaign,
+                                        onChange: (e) => updateCampaign(activeTab, campaign.id, 'campaign', e.target.value),
+                                        className: 'w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                                      },
+                                      React.createElement('option', { value: '' }, 'Select campaign'),
+                                      settings.campaigns.map(campaignOption =>
+                                        React.createElement('option', { key: campaignOption, value: campaignOption }, campaignOption)
+                                      )
+                                    )
+                                  ),
+                                  
+                                  // Term
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    React.createElement('input', {
+                                      type: 'text',
+                                      value: campaign.term,
+                                      onChange: (e) => updateCampaign(activeTab, campaign.id, 'term', e.target.value),
+                                      placeholder: 'keyword',
+                                      className: 'w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                                    })
+                                  ),
+                                  
+                                  // HMI Affiliate
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    React.createElement(
+                                      'div',
+                                      { className: 'flex justify-center' },
+                                      React.createElement('input', {
+                                        type: 'checkbox',
+                                        checked: campaign.hmiAffiliate || false,
+                                        onChange: (e) => updateCampaign(activeTab, campaign.id, 'hmiAffiliate', e.target.checked),
+                                        className: 'w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500'
+                                      })
+                                    )
+                                  ),
+                                  
+                                  // UTM URL
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    utmUrl && React.createElement(
+                                      'div',
+                                      { className: 'flex items-center gap-2' },
+                                      React.createElement(
+                                        'div',
+                                        { className: 'flex-1 p-2 bg-gray-50 rounded-lg text-sm font-mono text-gray-600 truncate' },
+                                        utmUrl
+                                      ),
+                                      React.createElement(
+                                        'button',
+                                        {
+                                          onClick: () => copyToClipboard(utmUrl),
+                                          className: 'p-2 text-gray-500 hover:text-blue-600 transition-colors',
+                                          title: 'Copy UTM URL'
+                                        },
+                                        React.createElement(Copy, { className: 'w-4 h-4' })
+                                      )
+                                    )
+                                  ),
+                                  
+                                  // Final URL
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    finalUrl && React.createElement(
+                                      'div',
+                                      { className: 'flex items-center gap-2' },
+                                      React.createElement(
+                                        'div',
+                                        { className: 'flex-1 p-2 bg-blue-50 rounded-lg text-sm font-mono text-blue-600 truncate' },
+                                        finalUrl
+                                      ),
+                                      React.createElement(
+                                        'button',
+                                        {
+                                          onClick: () => copyToClipboard(finalUrl),
+                                          className: 'p-2 text-blue-500 hover:text-blue-700 transition-colors',
+                                          title: 'Copy Final URL'
+                                        },
+                                        React.createElement(Copy, { className: 'w-4 h-4' })
+                                      )
+                                    )
+                                  ),
+                                  
+                                  // Notes
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    React.createElement('input', {
+                                      type: 'text',
+                                      value: campaign.notes,
+                                      onChange: (e) => updateCampaign(activeTab, campaign.id, 'notes', e.target.value),
+                                      placeholder: 'Notes...',
+                                      className: 'w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                                    })
+                                  ),
+                                  
+                                  // Actions
+                                  React.createElement(
+                                    'td',
+                                    { className: 'py-3 px-4' },
+                                    React.createElement(
+                                      'button',
+                                      {
+                                        onClick: () => deleteCampaign(activeTab, campaign.id),
+                                        className: 'p-2 text-red-500 hover:text-red-700 transition-colors',
+                                        title: 'Delete Campaign'
+                                      },
+                                      React.createElement(Trash2, { className: 'w-4 h-4' })
+                                    )
+                                  )
+                                );
+                              })
+                            )
+                          )
+                        )
+                    ]
+                )
+              ),
+
+              // Settings Modal
+              showSettings && React.createElement(
+                'div',
+                { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50' },
+                React.createElement(
+                  'div',
+                  { className: 'bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto' },
+                  React.createElement('h2', { className: 'text-2xl font-bold mb-6' }, 'Traffic Tag Settings'),
+                  React.createElement('p', { className: 'text-gray-600 mb-6' }, 'Customize the source, medium, and campaign options that appear in your dropdowns.'),
+                  
+                  React.createElement(
+                    'div',
+                    { className: 'grid md:grid-cols-3 gap-6' },
+                    
+                    // Sources
+                    React.createElement(
+                      'div',
+                      null,
+                      React.createElement('h3', { className: 'font-semibold mb-3' }, 'Sources (brands)'),
+                      React.createElement(
+                        'div',
+                        { className: 'space-y-2' },
+                        settings.sources.map((source, index) =>
+                          React.createElement(
+                            'div',
+                            { key: index, className: 'flex gap-2' },
+                            React.createElement('input', {
+                              type: 'text',
+                              value: source,
+                              onChange: (e) => {
+                                const newSources = [...settings.sources];
+                                newSources[index] = e.target.value;
+                                setSettings(prev => ({ ...prev, sources: newSources }));
+                              },
+                              className: 'flex-1 p-2 border border-gray-300 rounded-lg'
+                            }),
+                            React.createElement(
+                              'button',
+                              {
+                                onClick: () => {
+                                  const newSources = settings.sources.filter((_, i) => i !== index);
+                                  setSettings(prev => ({ ...prev, sources: newSources }));
+                                },
+                                className: 'p-2 text-red-500 hover:text-red-700'
+                              },
+                              React.createElement(Trash2, { className: 'w-4 h-4' })
+                            )
+                          )
+                        ),
+                        React.createElement(
+                          'button',
+                          {
+                            onClick: () => setSettings(prev => ({ ...prev, sources: [...prev.sources, ''] })),
+                            className: 'w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors'
+                          },
+                          React.createElement(Plus, { className: 'w-4 h-4 inline mr-2' }),
+                          'Add Source'
+                        )
+                      )
+                    ),
+                    
+                    // Mediums
+                    React.createElement(
+                      'div',
+                      null,
+                      React.createElement('h3', { className: 'font-semibold mb-3' }, 'Mediums (types)'),
+                      React.createElement(
+                        'div',
+                        { className: 'space-y-2' },
+                        settings.mediums.map((medium, index) =>
+                          React.createElement(
+                            'div',
+                            { key: index, className: 'flex gap-2' },
+                            React.createElement('input', {
+                              type: 'text',
+                              value: medium,
+                              onChange: (e) => {
+                                const newMediums = [...settings.mediums];
+                                newMediums[index] = e.target.value;
+                                setSettings(prev => ({ ...prev, mediums: newMediums }));
+                              },
+                              className: 'flex-1 p-2 border border-gray-300 rounded-lg'
+                            }),
+                            React.createElement(
+                              'button',
+                              {
+                                onClick: () => {
+                                  const newMediums = settings.mediums.filter((_, i) => i !== index);
+                                  setSettings(prev => ({ ...prev, mediums: newMediums }));
+                                },
+                                className: 'p-2 text-red-500 hover:text-red-700'
+                              },
+                              React.createElement(Trash2, { className: 'w-4 h-4' })
+                            )
+                          )
+                        ),
+                        React.createElement(
+                          'button',
+                          {
+                            onClick: () => setSettings(prev => ({ ...prev, mediums: [...prev.mediums, ''] })),
+                            className: 'w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors'
+                          },
+                          React.createElement(Plus, { className: 'w-4 h-4 inline mr-2' }),
+                          'Add Medium'
+                        )
+                      )
+                    ),
+                    
+                    // Campaigns
+                    React.createElement(
+                      'div',
+                      null,
+                      React.createElement('h3', { className: 'font-semibold mb-3' }, 'Campaigns'),
+                      React.createElement(
+                        'div',
+                        { className: 'space-y-2' },
+                        settings.campaigns.map((campaignOption, index) =>
+                          React.createElement(
+                            'div',
+                            { key: index, className: 'flex gap-2' },
+                            React.createElement('input', {
+                              type: 'text',
+                              value: campaignOption,
+                              onChange: (e) => {
+                                const newCampaigns = [...settings.campaigns];
+                                newCampaigns[index] = e.target.value;
+                                setSettings(prev => ({ ...prev, campaigns: newCampaigns }));
+                              },
+                              className: 'flex-1 p-2 border border-gray-300 rounded-lg'
+                            }),
+                            React.createElement(
+                              'button',
+                              {
+                                onClick: () => {
+                                  const newCampaigns = settings.campaigns.filter((_, i) => i !== index);
+                                  setSettings(prev => ({ ...prev, campaigns: newCampaigns }));
+                                },
+                                className: 'p-2 text-red-500 hover:text-red-700'
+                              },
+                              React.createElement(Trash2, { className: 'w-4 h-4' })
+                            )
+                          )
+                        ),
+                        React.createElement(
+                          'button',
+                          {
+                            onClick: () => setSettings(prev => ({ ...prev, campaigns: [...prev.campaigns, ''] })),
+                            className: 'w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors'
+                          },
+                          React.createElement(Plus, { className: 'w-4 h-4 inline mr-2' }),
+                          'Add Campaign'
+                        )
+                      )
+                    )
+                  ),
+                  
+                  React.createElement(
+                    'div',
+                    { className: 'flex justify-end gap-3 mt-6 pt-6 border-t' },
+                    React.createElement(
+                      'button',
+                      {
+                        onClick: () => setShowSettings(false),
+                        className: 'px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors'
+                      },
+                      'Cancel'
+                    ),
+                    React.createElement(
+                      'button',
+                      {
+                        onClick: async () => {
+                          try {
+                            await saveSettings(settings);
+                            setShowSettings(false);
+                            setLastSaved(new Date());
+                          } catch (error) {
+                            alert('Failed to save settings. Please try again.');
+                          }
+                        },
+                        className: 'px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors'
+                      },
+                      'Save Settings'
+                    )
+                  )
+                )
+              )
+            )
+          );
+        }
+
+        ReactDOM.render(React.createElement(UTMBuilder), document.getElementById('root'));
+    </script>
+</body>
+</html>
