@@ -8,14 +8,6 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .lucide {
-            width: 1em;
-            height: 1em;
-            display: inline-block;
-            vertical-align: middle;
-        }
-    </style>
 </head>
 <body>
     <div id="root">
@@ -34,7 +26,7 @@
         const SUPABASE_URL = 'https://hzacrecdazrbgunafxyk.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6YWNyZWNkYXpyYmd1bmFmeHlrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyNzYyOTMsImV4cCI6MjA2Mzg1MjI5M30.NULWmPxHRw86FldSuMgv3otvQZUVa7wWQgj0nwa8kpk';
 
-        // Simple icons as SVG
+        // Icons
         const Plus = ({ className = "w-4 h-4" }) => (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -60,49 +52,11 @@
             </svg>
         );
 
-        const Save = ({ className = "w-4 h-4" }) => (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-            </svg>
-        );
-
-        const RefreshCw = ({ className = "w-4 h-4" }) => (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-        );
-
-        // Simple Supabase client
-        const supabaseClient = {
-          url: SUPABASE_URL,
-          key: SUPABASE_ANON_KEY,
-          
-          async request(endpoint, options = {}) {
-            const url = `${this.url}/rest/v1/${endpoint}`;
-            const response = await fetch(url, {
-              headers: {
-                'apikey': this.key,
-                'Authorization': `Bearer ${this.key}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=representation',
-                ...options.headers
-              },
-              ...options
-            });
-            
-            if (!response.ok) {
-              throw new Error(`Supabase error: ${response.statusText}`);
-            }
-            
-            return response.json();
-          }
-        };
-
         function UTMBuilder() {
           const [settings, setSettings] = useState({
-            sources: [],
-            mediums: [],
-            campaigns: []
+            sources: ['kartra', 'kajabi', 'email', 'facebook', 'instagram'],
+            mediums: ['email', 'social', 'webinar', 'partner'],
+            campaigns: ['newsletter', 'workshop', 'product-launch', 'webinar-series']
           });
 
           const [activeTab, setActiveTab] = useState('Email');
@@ -111,20 +65,69 @@
             'Custom': []
           });
 
-          const [isLoading, setIsLoading] = useState(true);
+          const [isLoading, setIsLoading] = useState(false);
           const [isSaving, setIsSaving] = useState(false);
           const [lastSaved, setLastSaved] = useState(null);
           const [showSettings, setShowSettings] = useState(false);
+          const [connectionStatus, setConnectionStatus] = useState('Checking connection...');
 
           useEffect(() => {
-            loadData();
+            testConnection();
           }, []);
+
+          const testConnection = async () => {
+            try {
+              setConnectionStatus('Testing Supabase connection...');
+              console.log('Testing connection to:', SUPABASE_URL);
+              
+              const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+                headers: {
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                }
+              });
+              
+              console.log('Connection response:', response.status, response.statusText);
+              
+              if (response.ok) {
+                setConnectionStatus('✅ Connected to Supabase! Loading data...');
+                loadData();
+              } else {
+                setConnectionStatus(`❌ Connection failed: ${response.status} ${response.statusText}`);
+                setIsLoading(false);
+              }
+            } catch (error) {
+              console.error('Connection error:', error);
+              setConnectionStatus(`❌ Connection error: ${error.message}`);
+              setIsLoading(false);
+            }
+          };
 
           const loadData = async () => {
             try {
               setIsLoading(true);
+              setConnectionStatus('Loading campaigns...');
               
-              const campaignsData = await supabaseClient.request('campaigns?select=*');
+              // Try to load campaigns
+              let campaignsData = [];
+              try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/campaigns?select=*`, {
+                  headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                  }
+                });
+                
+                if (response.ok) {
+                  campaignsData = await response.json();
+                  console.log('Campaigns loaded:', campaignsData);
+                } else {
+                  console.log('No campaigns table yet, will create when needed');
+                }
+              } catch (error) {
+                console.log('Campaigns table may not exist yet:', error.message);
+              }
+              
               const campaignsByTab = { 'Email': [], 'Custom': [] };
               
               campaignsData.forEach(campaign => {
@@ -144,78 +147,52 @@
               
               setCampaigns(campaignsByTab);
               
-              const settingsData = await supabaseClient.request('settings?select=*');
-              const settingsByType = { sources: [], mediums: [], campaigns: [] };
+              // Try to load settings
+              setConnectionStatus('Loading settings...');
+              let settingsData = [];
+              try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/settings?select=*`, {
+                  headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                  }
+                });
+                
+                if (response.ok) {
+                  settingsData = await response.json();
+                  console.log('Settings loaded:', settingsData);
+                  
+                  const settingsByType = { sources: [], mediums: [], campaigns: [] };
+                  
+                  settingsData.forEach(setting => {
+                    if (setting.type === 'source') settingsByType.sources.push(setting.value);
+                    if (setting.type === 'medium') settingsByType.mediums.push(setting.value);
+                    if (setting.type === 'campaign') settingsByType.campaigns.push(setting.value);
+                  });
+                  
+                  // Only update if we got data from the database
+                  if (settingsByType.sources.length > 0 || settingsByType.mediums.length > 0 || settingsByType.campaigns.length > 0) {
+                    setSettings(settingsByType);
+                  }
+                } else {
+                  console.log('No settings table yet, using defaults');
+                }
+              } catch (error) {
+                console.log('Settings table may not exist yet:', error.message);
+              }
               
-              settingsData.forEach(setting => {
-                if (setting.type === 'source') settingsByType.sources.push(setting.value);
-                if (setting.type === 'medium') settingsByType.mediums.push(setting.value);
-                if (setting.type === 'campaign') settingsByType.campaigns.push(setting.value);
-              });
-              
-              setSettings(settingsByType);
               setLastSaved(new Date());
+              setConnectionStatus('✅ Ready to use!');
               
             } catch (error) {
               console.error('Error loading data:', error);
-              alert('Failed to load data from cloud. Please check your connection.');
+              setConnectionStatus(`❌ Error: ${error.message}`);
             } finally {
               setIsLoading(false);
             }
           };
 
-          const saveCampaign = async (campaign, tab) => {
-            try {
-              const campaignData = {
-                tab,
-                url: campaign.url,
-                source: campaign.source,
-                medium: campaign.medium,
-                campaign: campaign.campaign,
-                term: campaign.term,
-                hmi_affiliate: campaign.hmiAffiliate,
-                notes: campaign.notes
-              };
-
-              if (campaign.id && campaign.id > 1000000000000) {
-                await supabaseClient.request(`campaigns?id=eq.${campaign.id}`, {
-                  method: 'PATCH',
-                  body: JSON.stringify(campaignData)
-                });
-              } else {
-                const result = await supabaseClient.request('campaigns', {
-                  method: 'POST',
-                  body: JSON.stringify(campaignData)
-                });
-                return result[0].id;
-              }
-              
-              return campaign.id;
-            } catch (error) {
-              console.error('Error saving campaign:', error);
-              throw error;
-            }
-          };
-
-          const saveSettings = async (newSettings) => {
-            try {
-              await supabaseClient.request('settings', { method: 'DELETE' });
-              
-              const settingsArray = [];
-              newSettings.sources.forEach(source => settingsArray.push({ type: 'source', value: source }));
-              newSettings.mediums.forEach(medium => settingsArray.push({ type: 'medium', value: medium }));
-              newSettings.campaigns.forEach(campaign => settingsArray.push({ type: 'campaign', value: campaign }));
-              
-              await supabaseClient.request('settings', {
-                method: 'POST',
-                body: JSON.stringify(settingsArray)
-              });
-              
-            } catch (error) {
-              console.error('Error saving settings:', error);
-              throw error;
-            }
-          };
+          const addCampaign = (tab) => {
             const newCampaign = {
               id: Date.now(),
               url: '',
@@ -240,50 +217,13 @@
                 campaign.id === id ? { ...campaign, [field]: value } : campaign
               )
             }));
-            
-            setTimeout(async () => {
-              try {
-                setIsSaving(true);
-                const campaign = campaigns[tab].find(c => c.id === id);
-                if (campaign) {
-                  const updatedCampaign = { ...campaign, [field]: value };
-                  const savedId = await saveCampaign(updatedCampaign, tab);
-                  
-                  if (savedId !== id) {
-                    setCampaigns(prev => ({
-                      ...prev,
-                      [tab]: prev[tab].map(c => 
-                        c.id === id ? { ...c, id: savedId } : c
-                      )
-                    }));
-                  }
-                  
-                  setLastSaved(new Date());
-                }
-              } catch (error) {
-                alert('Failed to save changes. Please try again.');
-              } finally {
-                setIsSaving(false);
-              }
-            }, 1000);
           };
 
-          const deleteCampaign = async (tab, id) => {
-            try {
-              if (id > 1000000000000) {
-                await supabaseClient.request(`campaigns?id=eq.${id}`, { method: 'DELETE' });
-              }
-              
-              setCampaigns(prev => ({
-                ...prev,
-                [tab]: prev[tab].filter(campaign => campaign.id !== id)
-              }));
-              
-              setLastSaved(new Date());
-            } catch (error) {
-              console.error('Error deleting campaign:', error);
-              alert('Failed to delete campaign. Please try again.');
-            }
+          const deleteCampaign = (tab, id) => {
+            setCampaigns(prev => ({
+              ...prev,
+              [tab]: prev[tab].filter(campaign => campaign.id !== id)
+            }));
           };
 
           const generateUTMUrl = (campaign) => {
@@ -334,21 +274,9 @@
                     <div>
                       <h1 className="text-3xl font-bold text-gray-900 mb-2">Heart Mind UTM Builder & Traffic Tracker</h1>
                       <p className="text-gray-600">Build, track, and manage your marketing campaign URLs</p>
+                      <p className="text-sm text-blue-600 mt-2">{connectionStatus}</p>
                     </div>
                     <div className="flex gap-3">
-                      <div className="text-sm text-gray-500 flex items-center gap-2">
-                        {isSaving ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                            Saving...
-                          </>
-                        ) : lastSaved ? (
-                          <>
-                            <Save className="w-4 h-4 text-green-600" />
-                            Saved {lastSaved.toLocaleTimeString()}
-                          </>
-                        ) : null}
-                      </div>
                       <button
                         onClick={() => setShowSettings(true)}
                         className="bg-gray-100 hover:bg-gray-200 p-3 rounded-xl transition-colors"
@@ -382,155 +310,146 @@
 
                   {/* Campaign Table */}
                   <div className="p-6">
-                    {isLoading ? (
-                      <div className="text-center py-12">
-                        <RefreshCw className="w-8 h-8 mx-auto mb-4 text-blue-500 animate-spin" />
-                        <p className="text-gray-500">Loading your campaigns from the cloud...</p>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-xl font-semibold text-gray-900">{activeTab} Campaigns</h2>
+                      <button
+                        onClick={() => addCampaign(activeTab)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Campaign
+                      </button>
+                    </div>
+
+                    {campaigns[activeTab]?.length === 0 ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <p>No campaigns yet. Click "Add Campaign" to get started.</p>
                       </div>
                     ) : (
-                      <>
-                        <div className="flex justify-between items-center mb-6">
-                          <h2 className="text-xl font-semibold text-gray-900">{activeTab} Campaigns</h2>
-                          <button
-                            onClick={() => addCampaign(activeTab)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Add Campaign
-                          </button>
-                        </div>
-
-                        {campaigns[activeTab]?.length === 0 ? (
-                          <div className="text-center py-12 text-gray-500">
-                            <p>No campaigns yet. Click "Add Campaign" to get started.</p>
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full">
-                              <thead>
-                                <tr className="border-b border-gray-200">
-                                  <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[200px]">URL</th>
-                                  <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">Source*</th>
-                                  <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">Medium*</th>
-                                  <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[150px]">Campaign*</th>
-                                  <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">Term</th>
-                                  <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[100px]">HMI Affiliate?</th>
-                                  <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[350px]">Final URL</th>
-                                  <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[150px]">Notes</th>
-                                  <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[80px]">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {campaigns[activeTab]?.map(campaign => {
-                                  const finalUrl = generateFinalUrl(campaign);
-                                  return (
-                                    <tr key={campaign.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                      <td className="py-3 px-4">
-                                        <input
-                                          type="url"
-                                          value={campaign.url}
-                                          onChange={(e) => updateCampaign(activeTab, campaign.id, 'url', e.target.value)}
-                                          placeholder="https://example.com"
-                                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <select
-                                          value={campaign.source}
-                                          onChange={(e) => updateCampaign(activeTab, campaign.id, 'source', e.target.value)}
-                                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        >
-                                          <option value="">Select source</option>
-                                          {settings.sources.map(source => (
-                                            <option key={source} value={source}>{source}</option>
-                                          ))}
-                                        </select>
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <select
-                                          value={campaign.medium}
-                                          onChange={(e) => updateCampaign(activeTab, campaign.id, 'medium', e.target.value)}
-                                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        >
-                                          <option value="">Select medium</option>
-                                          {settings.mediums.map(medium => (
-                                            <option key={medium} value={medium}>{medium}</option>
-                                          ))}
-                                        </select>
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <select
-                                          value={campaign.campaign}
-                                          onChange={(e) => updateCampaign(activeTab, campaign.id, 'campaign', e.target.value)}
-                                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        >
-                                          <option value="">Select campaign</option>
-                                          {settings.campaigns.map(campaignOption => (
-                                            <option key={campaignOption} value={campaignOption}>{campaignOption}</option>
-                                          ))}
-                                        </select>
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <input
-                                          type="text"
-                                          value={campaign.term}
-                                          onChange={(e) => updateCampaign(activeTab, campaign.id, 'term', e.target.value)}
-                                          placeholder="keyword"
-                                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <div className="flex justify-center">
-                                          <input
-                                            type="checkbox"
-                                            checked={campaign.hmiAffiliate || false}
-                                            onChange={(e) => updateCampaign(activeTab, campaign.id, 'hmiAffiliate', e.target.checked)}
-                                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                          />
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-gray-200">
+                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[200px]">URL</th>
+                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">Source*</th>
+                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">Medium*</th>
+                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[150px]">Campaign*</th>
+                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">Term</th>
+                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[100px]">HMI Affiliate?</th>
+                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[350px]">Final URL</th>
+                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[150px]">Notes</th>
+                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[80px]">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {campaigns[activeTab]?.map(campaign => {
+                              const finalUrl = generateFinalUrl(campaign);
+                              return (
+                                <tr key={campaign.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                  <td className="py-3 px-4">
+                                    <input
+                                      type="url"
+                                      value={campaign.url}
+                                      onChange={(e) => updateCampaign(activeTab, campaign.id, 'url', e.target.value)}
+                                      placeholder="https://example.com"
+                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <select
+                                      value={campaign.source}
+                                      onChange={(e) => updateCampaign(activeTab, campaign.id, 'source', e.target.value)}
+                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                      <option value="">Select source</option>
+                                      {settings.sources.map(source => (
+                                        <option key={source} value={source}>{source}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <select
+                                      value={campaign.medium}
+                                      onChange={(e) => updateCampaign(activeTab, campaign.id, 'medium', e.target.value)}
+                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                      <option value="">Select medium</option>
+                                      {settings.mediums.map(medium => (
+                                        <option key={medium} value={medium}>{medium}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <select
+                                      value={campaign.campaign}
+                                      onChange={(e) => updateCampaign(activeTab, campaign.id, 'campaign', e.target.value)}
+                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                      <option value="">Select campaign</option>
+                                      {settings.campaigns.map(campaignOption => (
+                                        <option key={campaignOption} value={campaignOption}>{campaignOption}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <input
+                                      type="text"
+                                      value={campaign.term}
+                                      onChange={(e) => updateCampaign(activeTab, campaign.id, 'term', e.target.value)}
+                                      placeholder="keyword"
+                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex justify-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={campaign.hmiAffiliate || false}
+                                        onChange={(e) => updateCampaign(activeTab, campaign.id, 'hmiAffiliate', e.target.checked)}
+                                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    {finalUrl && (
+                                      <div className="flex items-center gap-2">
+                                        <div className="flex-1 p-2 bg-blue-50 rounded-lg text-sm font-mono text-blue-600 truncate">
+                                          {finalUrl}
                                         </div>
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        {finalUrl && (
-                                          <div className="flex items-center gap-2">
-                                            <div className="flex-1 p-2 bg-blue-50 rounded-lg text-sm font-mono text-blue-600 truncate">
-                                              {finalUrl}
-                                            </div>
-                                            <button
-                                              onClick={() => copyToClipboard(finalUrl)}
-                                              className="p-2 text-blue-500 hover:text-blue-700 transition-colors"
-                                              title="Copy Final URL"
-                                            >
-                                              <Copy className="w-4 h-4" />
-                                            </button>
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td className="py-3 px-4">
-                                        <input
-                                          type="text"
-                                          value={campaign.notes}
-                                          onChange={(e) => updateCampaign(activeTab, campaign.id, 'notes', e.target.value)}
-                                          placeholder="Notes..."
-                                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                      </td>
-                                      <td className="py-3 px-4">
                                         <button
-                                          onClick={() => deleteCampaign(activeTab, campaign.id)}
-                                          className="p-2 text-red-500 hover:text-red-700 transition-colors"
-                                          title="Delete Campaign"
+                                          onClick={() => copyToClipboard(finalUrl)}
+                                          className="p-2 text-blue-500 hover:text-blue-700 transition-colors"
+                                          title="Copy Final URL"
                                         >
-                                          <Trash2 className="w-4 h-4" />
+                                          <Copy className="w-4 h-4" />
                                         </button>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <input
+                                      type="text"
+                                      value={campaign.notes}
+                                      onChange={(e) => updateCampaign(activeTab, campaign.id, 'notes', e.target.value)}
+                                      placeholder="Notes..."
+                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <button
+                                      onClick={() => deleteCampaign(activeTab, campaign.id)}
+                                      className="p-2 text-red-500 hover:text-red-700 transition-colors"
+                                      title="Delete Campaign"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -662,22 +581,7 @@
                           onClick={() => setShowSettings(false)}
                           className="px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
                         >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={async () => {
-                            try {
-                              await saveSettings(settings);
-                              setShowSettings(false);
-                              setLastSaved(new Date());
-                              alert('Settings saved successfully!');
-                            } catch (error) {
-                              alert('Failed to save settings. Please try again.');
-                            }
-                          }}
-                          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
-                        >
-                          Save Settings
+                          Close
                         </button>
                       </div>
                     </div>
