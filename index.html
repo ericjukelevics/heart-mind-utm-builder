@@ -78,16 +78,13 @@
           const testConnection = async () => {
             try {
               setConnectionStatus('Testing Supabase connection...');
-              console.log('Testing connection to:', SUPABASE_URL);
-              
+
               const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
                 headers: {
                   'apikey': SUPABASE_ANON_KEY,
                   'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
                 }
               });
-              
-              console.log('Connection response:', response.status, response.statusText);
               
               if (response.ok) {
                 setConnectionStatus('✅ Connected to Supabase! Loading data...');
@@ -120,12 +117,9 @@
                 
                 if (response.ok) {
                   campaignsData = await response.json();
-                  console.log('Campaigns loaded:', campaignsData);
-                } else {
-                  console.log('No campaigns table yet, will create when needed');
                 }
               } catch (error) {
-                console.log('Campaigns table may not exist yet:', error.message);
+                // Campaigns table may not exist yet
               }
               
               const campaignsByTab = { 'Email': [], 'Custom': [] };
@@ -160,8 +154,7 @@
                 
                 if (response.ok) {
                   settingsData = await response.json();
-                  console.log('Settings loaded:', settingsData);
-                  
+
                   const settingsByType = { sources: [], mediums: [], campaigns: [] };
                   
                   settingsData.forEach(setting => {
@@ -178,11 +171,9 @@
                       campaigns: [...new Set(settingsByType.campaigns)].filter(s => s.trim() !== '')
                     });
                   }
-                } else {
-                  console.log('No settings table yet, using defaults');
                 }
               } catch (error) {
-                console.log('Settings table may not exist yet:', error.message);
+                // Settings table may not exist yet
               }
               
               setLastSaved(new Date());
@@ -230,20 +221,20 @@
           };
 
           const updateCampaign = (tab, id, field, value) => {
-            setCampaigns(prev => ({
-              ...prev,
-              [tab]: prev[tab].map(campaign => 
-                campaign.id === id ? { ...campaign, [field]: value } : campaign
-              )
-            }));
-            
-            // Auto-save after a short delay
+            let campaignToSave = null;
+            setCampaigns(prev => {
+              const updated = prev[tab].map(c =>
+                c.id === id ? { ...c, [field]: value } : c
+              );
+              campaignToSave = updated.find(c => c.id === id);
+              return { ...prev, [tab]: updated };
+            });
+
+            // Auto-save after a short delay, using captured data to avoid stale closure
             setTimeout(async () => {
               try {
                 setIsSaving(true);
-                const updatedCampaign = campaigns[tab].find(c => c.id === id);
-                if (updatedCampaign) {
-                  const campaignToSave = { ...updatedCampaign, [field]: value };
+                if (campaignToSave) {
                   await saveCampaign(campaignToSave, tab);
                   setLastSaved(new Date());
                 }
@@ -268,7 +259,7 @@
                 notes: campaign.notes
               };
 
-              if (campaign.id && campaign.id > 1000000000000) {
+              if (campaign.id && campaign.id < 1000000000000) {
                 // Update existing campaign
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/campaigns?id=eq.${campaign.id}`, {
                   method: 'PATCH',
@@ -319,7 +310,7 @@
 
           const deleteCampaign = async (tab, id) => {
             try {
-              if (id > 1000000000000) {
+              if (id < 1000000000000) {
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/campaigns?id=eq.${id}`, {
                   method: 'DELETE',
                   headers: {
@@ -350,39 +341,55 @@
                 mediums: [...new Set(newSettings.mediums.filter(s => s && s.trim() !== ''))],
                 campaigns: [...new Set(newSettings.campaigns.filter(s => s && s.trim() !== ''))]
               };
-              
+
+              const authHeaders = {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+              };
+
+              // Fetch a backup before making any changes
+              let backup = [];
+              try {
+                const backupResp = await fetch(`${SUPABASE_URL}/rest/v1/settings?select=*`, { headers: authHeaders });
+                if (backupResp.ok) backup = await backupResp.json();
+              } catch (e) {}
+
               // Delete existing settings
               await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
                 method: 'DELETE',
-                headers: {
-                  'apikey': SUPABASE_ANON_KEY,
-                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-                }
+                headers: authHeaders
               });
-              
+
               // Insert new settings
               const settingsArray = [];
               cleanSettings.sources.forEach(source => settingsArray.push({ type: 'source', value: source.trim() }));
               cleanSettings.mediums.forEach(medium => settingsArray.push({ type: 'medium', value: medium.trim() }));
               cleanSettings.campaigns.forEach(campaign => settingsArray.push({ type: 'campaign', value: campaign.trim() }));
-              
+
               if (settingsArray.length > 0) {
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
                   method: 'POST',
-                  headers: {
-                    'apikey': SUPABASE_ANON_KEY,
-                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                    'Content-Type': 'application/json'
-                  },
+                  headers: { ...authHeaders, 'Content-Type': 'application/json' },
                   body: JSON.stringify(settingsArray)
                 });
-                
-                if (!response.ok) throw new Error(`Settings save failed: ${response.statusText}`);
+
+                if (!response.ok) {
+                  // Restore backup to avoid data loss
+                  if (backup.length > 0) {
+                    const restoredBackup = backup.map(({ type, value }) => ({ type, value }));
+                    await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
+                      method: 'POST',
+                      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                      body: JSON.stringify(restoredBackup)
+                    });
+                  }
+                  throw new Error(`Settings save failed: ${response.statusText}`);
+                }
               }
-              
+
               // Update local state with clean settings
               setSettings(cleanSettings);
-              
+
             } catch (error) {
               console.error('Error saving settings:', error);
               throw error;
