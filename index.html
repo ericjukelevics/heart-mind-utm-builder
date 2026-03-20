@@ -354,10 +354,10 @@
                 if (backupResp.ok) backup = await backupResp.json();
               } catch (e) {}
 
-              // Delete existing settings
-              await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
+              // Delete existing settings (filter required by Supabase to allow full-table delete)
+              await fetch(`${SUPABASE_URL}/rest/v1/settings?type=neq.null`, {
                 method: 'DELETE',
-                headers: authHeaders
+                headers: { ...authHeaders, 'Prefer': 'return=minimal' }
               });
 
               // Insert new settings
