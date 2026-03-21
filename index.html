@@ -4,21 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Heart Mind UTM Builder & Traffic Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
 </head>
 <body>
     <div id="root">
-        <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-center justify-center">
+        <div class="min-h-screen bg-[#F9F8F4] p-4 flex items-center justify-center">
             <div class="text-center">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p class="text-gray-600">Loading Heart Mind UTM Builder...</p>
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                <p class="text-stone-500">Loading Heart Mind UTM Builder...</p>
             </div>
         </div>
     </div>
-    
+
     <script type="text/babel">
         const { useState, useEffect } = React;
 
@@ -52,6 +67,12 @@
             </svg>
         );
 
+        const Heart = ({ className = "w-6 h-6" }) => (
+            <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 21.593c-5.63-5.539-11-10.297-11-14.402 0-3.791 3.068-5.191 5.281-5.191 1.312 0 4.151.501 5.719 4.457 1.59-3.968 4.464-4.447 5.726-4.447 2.54 0 5.274 1.621 5.274 5.181 0 4.069-5.136 8.625-11 14.402z"/>
+            </svg>
+        );
+
         function UTMBuilder() {
           const [settings, setSettings] = useState({
             sources: ['kartra', 'kajabi', 'email', 'facebook', 'instagram'],
@@ -69,15 +90,23 @@
           const [isSaving, setIsSaving] = useState(false);
           const [lastSaved, setLastSaved] = useState(null);
           const [showSettings, setShowSettings] = useState(false);
-          const [connectionStatus, setConnectionStatus] = useState('Checking connection...');
+          const [connectionStatus, setConnectionStatus] = useState('checking');
+          const [connectionMessage, setConnectionMessage] = useState('Checking connection...');
+          const [toast, setToast] = useState(null);
 
           useEffect(() => {
             testConnection();
           }, []);
 
+          const showToast = (message, type = 'success') => {
+            setToast({ message, type });
+            setTimeout(() => setToast(null), 3000);
+          };
+
           const testConnection = async () => {
             try {
-              setConnectionStatus('Testing Supabase connection...');
+              setConnectionStatus('checking');
+              setConnectionMessage('Connecting...');
 
               const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
                 headers: {
@@ -85,17 +114,20 @@
                   'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
                 }
               });
-              
+
               if (response.ok) {
-                setConnectionStatus('✅ Connected to Supabase! Loading data...');
+                setConnectionStatus('connected');
+                setConnectionMessage('Connected');
                 loadData();
               } else {
-                setConnectionStatus(`❌ Connection failed: ${response.status} ${response.statusText}`);
+                setConnectionStatus('error');
+                setConnectionMessage(`Connection failed: ${response.status}`);
                 setIsLoading(false);
               }
             } catch (error) {
               console.error('Connection error:', error);
-              setConnectionStatus(`❌ Connection error: ${error.message}`);
+              setConnectionStatus('error');
+              setConnectionMessage(`Connection error: ${error.message}`);
               setIsLoading(false);
             }
           };
@@ -103,9 +135,8 @@
           const loadData = async () => {
             try {
               setIsLoading(true);
-              setConnectionStatus('Loading campaigns...');
-              
-              // Try to load campaigns
+              setConnectionMessage('Loading campaigns...');
+
               let campaignsData = [];
               try {
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/campaigns?select=*`, {
@@ -114,16 +145,16 @@
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
                   }
                 });
-                
+
                 if (response.ok) {
                   campaignsData = await response.json();
                 }
               } catch (error) {
                 // Campaigns table may not exist yet
               }
-              
+
               const campaignsByTab = { 'Email': [], 'Custom': [] };
-              
+
               campaignsData.forEach(campaign => {
                 if (campaignsByTab[campaign.tab]) {
                   campaignsByTab[campaign.tab].push({
@@ -138,11 +169,10 @@
                   });
                 }
               });
-              
+
               setCampaigns(campaignsByTab);
-              
-              // Load settings
-              setConnectionStatus('Loading settings...');
+
+              setConnectionMessage('Loading settings...');
               let settingsData = [];
               try {
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/settings?select=*`, {
@@ -151,19 +181,18 @@
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
                   }
                 });
-                
+
                 if (response.ok) {
                   settingsData = await response.json();
 
                   const settingsByType = { sources: [], mediums: [], campaigns: [] };
-                  
+
                   settingsData.forEach(setting => {
                     if (setting.type === 'source') settingsByType.sources.push(setting.value);
                     if (setting.type === 'medium') settingsByType.mediums.push(setting.value);
                     if (setting.type === 'campaign') settingsByType.campaigns.push(setting.value);
                   });
-                  
-                  // Remove duplicates and only update if we got data from the database
+
                   if (settingsByType.sources.length > 0 || settingsByType.mediums.length > 0 || settingsByType.campaigns.length > 0) {
                     setSettings({
                       sources: [...new Set(settingsByType.sources)].filter(s => s.trim() !== ''),
@@ -175,13 +204,15 @@
               } catch (error) {
                 // Settings table may not exist yet
               }
-              
+
               setLastSaved(new Date());
-              setConnectionStatus('✅ Ready to use!');
-              
+              setConnectionStatus('ready');
+              setConnectionMessage('Ready');
+
             } catch (error) {
               console.error('Error loading data:', error);
-              setConnectionStatus(`❌ Error: ${error.message}`);
+              setConnectionStatus('error');
+              setConnectionMessage(`Error: ${error.message}`);
             } finally {
               setIsLoading(false);
             }
@@ -198,19 +229,18 @@
               notes: '',
               hmiAffiliate: false
             };
-            
+
             setCampaigns(prev => ({
               ...prev,
               [tab]: [...prev[tab], newCampaign]
             }));
-            
-            // Auto-save the new empty campaign
+
             try {
               const savedId = await saveCampaign(newCampaign, tab);
               if (savedId !== newCampaign.id) {
                 setCampaigns(prev => ({
                   ...prev,
-                  [tab]: prev[tab].map(c => 
+                  [tab]: prev[tab].map(c =>
                     c.id === newCampaign.id ? { ...c, id: savedId } : c
                   )
                 }));
@@ -230,7 +260,6 @@
               return { ...prev, [tab]: updated };
             });
 
-            // Auto-save after a short delay, using captured data to avoid stale closure
             setTimeout(async () => {
               try {
                 setIsSaving(true);
@@ -260,7 +289,6 @@
               };
 
               if (campaign.id && campaign.id < 1000000000000) {
-                // Update existing campaign
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/campaigns?id=eq.${campaign.id}`, {
                   method: 'PATCH',
                   headers: {
@@ -271,10 +299,9 @@
                   },
                   body: JSON.stringify(campaignData)
                 });
-                
+
                 if (!response.ok) throw new Error(`Save failed: ${response.statusText}`);
               } else {
-                // Create new campaign
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/campaigns`, {
                   method: 'POST',
                   headers: {
@@ -285,22 +312,21 @@
                   },
                   body: JSON.stringify(campaignData)
                 });
-                
+
                 if (!response.ok) throw new Error(`Save failed: ${response.statusText}`);
-                
+
                 const result = await response.json();
                 if (result && result[0]) {
-                  // Update the campaign with the real database ID
                   setCampaigns(prev => ({
                     ...prev,
-                    [tab]: prev[tab].map(c => 
+                    [tab]: prev[tab].map(c =>
                       c.id === campaign.id ? { ...c, id: result[0].id } : c
                     )
                   }));
                   return result[0].id;
                 }
               }
-              
+
               return campaign.id;
             } catch (error) {
               console.error('Error saving campaign:', error);
@@ -318,15 +344,15 @@
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
                   }
                 });
-                
+
                 if (!response.ok) throw new Error(`Delete failed: ${response.statusText}`);
               }
-              
+
               setCampaigns(prev => ({
                 ...prev,
                 [tab]: prev[tab].filter(campaign => campaign.id !== id)
               }));
-              
+
               setLastSaved(new Date());
             } catch (error) {
               console.error('Error deleting campaign:', error);
@@ -335,7 +361,6 @@
 
           const saveSettings = async (newSettings) => {
             try {
-              // Clean settings - remove empty values and duplicates
               const cleanSettings = {
                 sources: [...new Set(newSettings.sources.filter(s => s && s.trim() !== ''))],
                 mediums: [...new Set(newSettings.mediums.filter(s => s && s.trim() !== ''))],
@@ -347,20 +372,17 @@
                 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
               };
 
-              // Fetch a backup before making any changes
               let backup = [];
               try {
                 const backupResp = await fetch(`${SUPABASE_URL}/rest/v1/settings?select=*`, { headers: authHeaders });
                 if (backupResp.ok) backup = await backupResp.json();
               } catch (e) {}
 
-              // Delete existing settings (filter required by Supabase to allow full-table delete)
               await fetch(`${SUPABASE_URL}/rest/v1/settings?type=neq.null`, {
                 method: 'DELETE',
                 headers: { ...authHeaders, 'Prefer': 'return=minimal' }
               });
 
-              // Insert new settings
               const settingsArray = [];
               cleanSettings.sources.forEach(source => settingsArray.push({ type: 'source', value: source.trim() }));
               cleanSettings.mediums.forEach(medium => settingsArray.push({ type: 'medium', value: medium.trim() }));
@@ -374,7 +396,6 @@
                 });
 
                 if (!response.ok) {
-                  // Restore backup to avoid data loss
                   if (backup.length > 0) {
                     const restoredBackup = backup.map(({ type, value }) => ({ type, value }));
                     await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
@@ -387,7 +408,6 @@
                 }
               }
 
-              // Update local state with clean settings
               setSettings(cleanSettings);
 
             } catch (error) {
@@ -398,29 +418,27 @@
 
           const generateUTMUrl = (campaign) => {
             if (!campaign.url || !campaign.source || !campaign.medium) return '';
-            
-            // Ensure URL has https:// prefix
+
             let baseUrl = campaign.url.trim();
             if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
               baseUrl = 'https://' + baseUrl;
             }
-            
-            // Remove any existing query parameters
+
             baseUrl = baseUrl.includes('?') ? baseUrl.split('?')[0] : baseUrl;
-            
+
             const params = new URLSearchParams();
             if (campaign.source) params.append('utm_source', campaign.source);
             if (campaign.medium) params.append('utm_medium', campaign.medium);
             if (campaign.campaign) params.append('utm_campaign', campaign.campaign);
             if (campaign.term) params.append('utm_term', campaign.term);
-            
+
             return `${baseUrl}?${params.toString()}`;
           };
 
           const generateFinalUrl = (campaign) => {
             const utmUrl = generateUTMUrl(campaign);
             if (!utmUrl) return '';
-            
+
             let finalUrl = utmUrl;
             finalUrl += '&he={email}';
             if (campaign.campaign) {
@@ -429,7 +447,7 @@
             if (campaign.hmiAffiliate) {
               finalUrl += '#a_aid=hmi';
             }
-            
+
             return finalUrl;
           };
 
@@ -439,35 +457,64 @@
 
           const tabs = ['Email', 'Custom'];
 
+          const statusDotColor = connectionStatus === 'ready' || connectionStatus === 'connected'
+            ? 'bg-green-400'
+            : connectionStatus === 'error'
+            ? 'bg-red-400'
+            : 'bg-yellow-400 animate-pulse';
+
           return (
-            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+            <div className="min-h-screen bg-[#F9F8F4] p-4">
+
+              {/* Toast */}
+              {toast && (
+                <div className={`fixed top-5 right-5 z-[100] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-lg text-sm font-medium transition-all ${
+                  toast.type === 'success'
+                    ? 'bg-white border border-green-200 text-green-700'
+                    : 'bg-white border border-red-200 text-red-700'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${toast.type === 'success' ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                  {toast.message}
+                </div>
+              )}
+
               <div className="max-w-7xl mx-auto">
-                
+
                 {/* Header */}
-                <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6 mb-6">
                   <div className="flex justify-between items-center">
-                    <div>
-                      <h1 className="text-3xl font-bold text-gray-900 mb-2">Heart Mind UTM Builder & Traffic Tracker</h1>
-                      <p className="text-gray-600">Build, track, and manage your marketing campaign URLs</p>
-                      <p className="text-sm text-blue-600 mt-2">{connectionStatus}</p>
+                    <div className="flex items-start gap-4">
+                      <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Heart className="w-6 h-6 text-orange-500" />
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-extrabold text-stone-900 tracking-tight">Heart Mind UTM Builder</h1>
+                        <p className="text-stone-500 text-sm mt-0.5">Build, track, and manage your marketing campaign URLs</p>
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotColor}`}></div>
+                          <span className="text-xs text-stone-400">{connectionMessage}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex gap-3">
-                      <div className="text-sm text-gray-500 flex items-center gap-2">
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm text-stone-400 flex items-center gap-2">
                         {isSaving ? (
                           <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                            Saving...
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500"></div>
+                            <span>Saving...</span>
                           </>
                         ) : lastSaved ? (
                           <>
-                            <div className="w-4 h-4 text-green-600">✓</div>
-                            Saved {lastSaved.toLocaleTimeString()}
+                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>Saved {lastSaved.toLocaleTimeString()}</span>
                           </>
                         ) : null}
                       </div>
                       <button
                         onClick={() => setShowSettings(true)}
-                        className="bg-gray-100 hover:bg-gray-200 p-3 rounded-xl transition-colors"
+                        className="p-2.5 rounded-xl text-stone-400 hover:text-orange-500 hover:bg-orange-50 transition-colors"
                         title="Settings"
                       >
                         <Settings className="w-5 h-5" />
@@ -476,9 +523,9 @@
                   </div>
                 </div>
 
-                {/* Tabs */}
-                <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-                  <div className="border-b border-gray-200">
+                {/* Tabs + Table Card */}
+                <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
+                  <div className="border-b border-stone-200">
                     <div className="flex overflow-x-auto">
                       {tabs.map(tab => (
                         <button
@@ -486,11 +533,11 @@
                           onClick={() => setActiveTab(tab)}
                           className={`px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors ${
                             activeTab === tab
-                              ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                              ? 'bg-orange-50 text-orange-600 border-b-2 border-orange-500'
+                              : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
                           }`}
                         >
-                          {tab} ({campaigns[tab]?.length || 0})
+                          {tab} <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${activeTab === tab ? 'bg-orange-100 text-orange-600' : 'bg-stone-100 text-stone-500'}`}>{campaigns[tab]?.length || 0}</span>
                         </button>
                       ))}
                     </div>
@@ -499,10 +546,10 @@
                   {/* Campaign Table */}
                   <div className="p-6">
                     <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-xl font-semibold text-gray-900">{activeTab} Campaigns</h2>
+                      <h2 className="text-lg font-semibold text-stone-900">{activeTab} Campaigns</h2>
                       <button
                         onClick={() => addCampaign(activeTab)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 transition-colors"
+                        className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-full flex items-center gap-2 text-sm font-medium transition-colors shadow-sm"
                       >
                         <Plus className="w-4 h-4" />
                         Add Campaign
@@ -510,44 +557,48 @@
                     </div>
 
                     {campaigns[activeTab]?.length === 0 ? (
-                      <div className="text-center py-12 text-gray-500">
-                        <p>No campaigns yet. Click "Add Campaign" to get started.</p>
+                      <div className="text-center py-16">
+                        <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mx-auto mb-4">
+                          <Heart className="w-6 h-6 text-orange-300" />
+                        </div>
+                        <p className="text-stone-500 font-medium">No campaigns yet</p>
+                        <p className="text-stone-400 text-sm mt-1">Click "Add Campaign" to get started.</p>
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full">
                           <thead>
-                            <tr className="border-b border-gray-200">
-                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[200px]">URL</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">Source*</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">Medium*</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[150px]">Campaign*</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[120px]">Term</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[100px]">HMI Affiliate?</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[350px]">Final URL</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[150px]">Notes</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[80px]">Actions</th>
+                            <tr className="border-b border-stone-200">
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[200px]">URL</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[120px]">Source*</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[120px]">Medium*</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[150px]">Campaign*</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[120px]">Term</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[100px]">HMI Affiliate?</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[350px]">Final URL</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[150px]">Notes</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[80px]">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {campaigns[activeTab]?.map(campaign => {
                               const finalUrl = generateFinalUrl(campaign);
                               return (
-                                <tr key={campaign.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                <tr key={campaign.id} className="border-b border-stone-100 hover:bg-orange-50 transition-colors">
                                   <td className="py-3 px-4">
                                     <input
                                       type="url"
                                       value={campaign.url}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'url', e.target.value)}
                                       placeholder="https://example.com"
-                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="py-3 px-4">
                                     <select
                                       value={campaign.source}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'source', e.target.value)}
-                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     >
                                       <option value="">Select source</option>
                                       {settings.sources.map(source => (
@@ -559,7 +610,7 @@
                                     <select
                                       value={campaign.medium}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'medium', e.target.value)}
-                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     >
                                       <option value="">Select medium</option>
                                       {settings.mediums.map(medium => (
@@ -571,7 +622,7 @@
                                     <select
                                       value={campaign.campaign}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'campaign', e.target.value)}
-                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     >
                                       <option value="">Select campaign</option>
                                       {settings.campaigns.map(campaignOption => (
@@ -585,7 +636,7 @@
                                       value={campaign.term}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'term', e.target.value)}
                                       placeholder="keyword"
-                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="py-3 px-4">
@@ -594,19 +645,19 @@
                                         type="checkbox"
                                         checked={campaign.hmiAffiliate || false}
                                         onChange={(e) => updateCampaign(activeTab, campaign.id, 'hmiAffiliate', e.target.checked)}
-                                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                        className="w-5 h-5 accent-orange-500 border-stone-300 rounded"
                                       />
                                     </div>
                                   </td>
                                   <td className="py-3 px-4">
                                     {finalUrl && (
                                       <div className="flex items-center gap-2">
-                                        <div className="flex-1 p-2 bg-blue-50 rounded-lg text-sm font-mono text-blue-600 truncate">
+                                        <div className="flex-1 p-2 bg-orange-50 rounded-lg text-sm font-mono text-orange-700 truncate border border-orange-100">
                                           {finalUrl}
                                         </div>
                                         <button
                                           onClick={() => copyToClipboard(finalUrl)}
-                                          className="p-2 text-blue-500 hover:text-blue-700 transition-colors"
+                                          className="p-2 text-orange-400 hover:text-orange-600 transition-colors flex-shrink-0"
                                           title="Copy Final URL"
                                         >
                                           <Copy className="w-4 h-4" />
@@ -620,13 +671,13 @@
                                       value={campaign.notes}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'notes', e.target.value)}
                                       placeholder="Notes..."
-                                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="py-3 px-4">
                                     <button
                                       onClick={() => deleteCampaign(activeTab, campaign.id)}
-                                      className="p-2 text-red-500 hover:text-red-700 transition-colors"
+                                      className="p-2 text-stone-400 hover:text-red-500 transition-colors"
                                       title="Delete Campaign"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -645,16 +696,26 @@
                 {/* Settings Modal */}
                 {showSettings && (
                   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
-                      <h2 className="text-2xl font-bold mb-6">Traffic Tag Settings</h2>
-                      <p className="text-gray-600 mb-6">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-stone-100 p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+                      <div className="flex items-center justify-between mb-2">
+                        <h2 className="text-xl font-bold text-stone-900">Traffic Tag Settings</h2>
+                        <button
+                          onClick={() => setShowSettings(false)}
+                          className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      <p className="text-stone-500 text-sm mb-6">
                         Customize the source, medium, and campaign options that appear in your dropdowns.
                       </p>
-                      
+
                       <div className="grid md:grid-cols-3 gap-6">
                         {/* Sources */}
                         <div>
-                          <h3 className="font-semibold mb-3">Sources (brands)</h3>
+                          <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Sources (brands)</h3>
                           <div className="space-y-2">
                             {settings.sources.map((source, index) => (
                               <div key={index} className="flex gap-2">
@@ -666,14 +727,14 @@
                                     newSources[index] = e.target.value;
                                     setSettings(prev => ({ ...prev, sources: newSources }));
                                   }}
-                                  className="flex-1 p-2 border border-gray-300 rounded-lg"
+                                  className="flex-1 p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                 />
                                 <button
                                   onClick={() => {
                                     const newSources = settings.sources.filter((_, i) => i !== index);
                                     setSettings(prev => ({ ...prev, sources: newSources }));
                                   }}
-                                  className="p-2 text-red-500 hover:text-red-700"
+                                  className="p-2 text-stone-400 hover:text-red-500 transition-colors"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -681,9 +742,9 @@
                             ))}
                             <button
                               onClick={() => setSettings(prev => ({ ...prev, sources: [...prev.sources, ''] }))}
-                              className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors"
+                              className="w-full p-2 border-2 border-dashed border-stone-200 rounded-lg text-stone-400 hover:border-orange-400 hover:text-orange-500 transition-colors text-sm"
                             >
-                              <Plus className="w-4 h-4 inline mr-2" />
+                              <Plus className="w-4 h-4 inline mr-1.5" />
                               Add Source
                             </button>
                           </div>
@@ -691,7 +752,7 @@
 
                         {/* Mediums */}
                         <div>
-                          <h3 className="font-semibold mb-3">Mediums (types)</h3>
+                          <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Mediums (types)</h3>
                           <div className="space-y-2">
                             {settings.mediums.map((medium, index) => (
                               <div key={index} className="flex gap-2">
@@ -703,14 +764,14 @@
                                     newMediums[index] = e.target.value;
                                     setSettings(prev => ({ ...prev, mediums: newMediums }));
                                   }}
-                                  className="flex-1 p-2 border border-gray-300 rounded-lg"
+                                  className="flex-1 p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                 />
                                 <button
                                   onClick={() => {
                                     const newMediums = settings.mediums.filter((_, i) => i !== index);
                                     setSettings(prev => ({ ...prev, mediums: newMediums }));
                                   }}
-                                  className="p-2 text-red-500 hover:text-red-700"
+                                  className="p-2 text-stone-400 hover:text-red-500 transition-colors"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -718,9 +779,9 @@
                             ))}
                             <button
                               onClick={() => setSettings(prev => ({ ...prev, mediums: [...prev.mediums, ''] }))}
-                              className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors"
+                              className="w-full p-2 border-2 border-dashed border-stone-200 rounded-lg text-stone-400 hover:border-orange-400 hover:text-orange-500 transition-colors text-sm"
                             >
-                              <Plus className="w-4 h-4 inline mr-2" />
+                              <Plus className="w-4 h-4 inline mr-1.5" />
                               Add Medium
                             </button>
                           </div>
@@ -728,7 +789,7 @@
 
                         {/* Campaigns */}
                         <div>
-                          <h3 className="font-semibold mb-3">Campaigns</h3>
+                          <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Campaigns</h3>
                           <div className="space-y-2">
                             {settings.campaigns.map((campaignOption, index) => (
                               <div key={index} className="flex gap-2">
@@ -740,14 +801,14 @@
                                     newCampaigns[index] = e.target.value;
                                     setSettings(prev => ({ ...prev, campaigns: newCampaigns }));
                                   }}
-                                  className="flex-1 p-2 border border-gray-300 rounded-lg"
+                                  className="flex-1 p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                 />
                                 <button
                                   onClick={() => {
                                     const newCampaigns = settings.campaigns.filter((_, i) => i !== index);
                                     setSettings(prev => ({ ...prev, campaigns: newCampaigns }));
                                   }}
-                                  className="p-2 text-red-500 hover:text-red-700"
+                                  className="p-2 text-stone-400 hover:text-red-500 transition-colors"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -755,28 +816,34 @@
                             ))}
                             <button
                               onClick={() => setSettings(prev => ({ ...prev, campaigns: [...prev.campaigns, ''] }))}
-                              className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors"
+                              className="w-full p-2 border-2 border-dashed border-stone-200 rounded-lg text-stone-400 hover:border-orange-400 hover:text-orange-500 transition-colors text-sm"
                             >
-                              <Plus className="w-4 h-4 inline mr-2" />
+                              <Plus className="w-4 h-4 inline mr-1.5" />
                               Add Campaign
                             </button>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
+                      <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-stone-100">
+                        <button
+                          onClick={() => setShowSettings(false)}
+                          className="px-6 py-2.5 text-stone-500 hover:text-stone-700 font-medium text-sm transition-colors"
+                        >
+                          Cancel
+                        </button>
                         <button
                           onClick={async () => {
                             try {
                               await saveSettings(settings);
                               setShowSettings(false);
                               setLastSaved(new Date());
-                              alert('Settings saved successfully!');
+                              showToast('Settings saved successfully!', 'success');
                             } catch (error) {
-                              alert('Failed to save settings. Please try again.');
+                              showToast('Failed to save settings. Please try again.', 'error');
                             }
                           }}
-                          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
+                          className="px-8 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-medium text-sm transition-colors shadow-sm"
                         >
                           Save Settings
                         </button>
