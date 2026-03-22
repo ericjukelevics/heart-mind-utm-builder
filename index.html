@@ -67,9 +67,15 @@
             </svg>
         );
 
-        const Heart = ({ className = "w-6 h-6" }) => (
-            <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 21.593c-5.63-5.539-11-10.297-11-14.402 0-3.791 3.068-5.191 5.281-5.191 1.312 0 4.151.501 5.719 4.457 1.59-3.968 4.464-4.447 5.726-4.447 2.54 0 5.274 1.621 5.274 5.181 0 4.069-5.136 8.625-11 14.402z"/>
+        const MeditationLogo = ({ className = "w-6 h-6" }) => (
+            <svg className={className} viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="50" cy="13" rx="11" ry="12"/>
+                <path d="M50,64 C46,55 36,44 30,32 C37,24 52,28 56,42 C55,52 53,59 50,64Z"/>
+                <path d="M50,64 C54,55 64,44 70,32 C63,24 48,28 44,42 C45,52 47,59 50,64Z"/>
+                <path d="M10,46 C5,58 7,72 17,76 C21,68 23,57 20,45 C16,42 12,43 10,46Z"/>
+                <path d="M90,46 C95,58 93,72 83,76 C79,68 77,57 80,45 C84,42 88,43 90,46Z"/>
+                <path d="M6,92 C6,79 22,73 50,77 L50,90 C34,87 18,87 6,92Z"/>
+                <path d="M94,92 C94,79 78,73 50,77 L50,90 C66,87 82,87 94,92Z"/>
             </svg>
         );
 
@@ -93,6 +99,8 @@
           const [connectionStatus, setConnectionStatus] = useState('checking');
           const [connectionMessage, setConnectionMessage] = useState('Checking connection...');
           const [toast, setToast] = useState(null);
+          const [isSavingSettings, setIsSavingSettings] = useState(false);
+          const [settingsError, setSettingsError] = useState(null);
 
           useEffect(() => {
             testConnection();
@@ -485,7 +493,7 @@
                   <div className="flex justify-between items-center">
                     <div className="flex items-start gap-4">
                       <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Heart className="w-6 h-6 text-orange-500" />
+                        <MeditationLogo className="w-6 h-6 text-orange-500" />
                       </div>
                       <div>
                         <h1 className="text-2xl font-extrabold text-stone-900 tracking-tight">Heart Mind UTM Builder</h1>
@@ -559,7 +567,7 @@
                     {campaigns[activeTab]?.length === 0 ? (
                       <div className="text-center py-16">
                         <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mx-auto mb-4">
-                          <Heart className="w-6 h-6 text-orange-300" />
+                          <MeditationLogo className="w-6 h-6 text-orange-300" />
                         </div>
                         <p className="text-stone-500 font-medium">No campaigns yet</p>
                         <p className="text-stone-400 text-sm mt-1">Click "Add Campaign" to get started.</p>
@@ -569,15 +577,15 @@
                         <table className="w-full">
                           <thead>
                             <tr className="border-b border-stone-200">
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[200px]">URL</th>
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[120px]">Source*</th>
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[120px]">Medium*</th>
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[150px]">Campaign*</th>
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[120px]">Term</th>
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[100px]">HMI Affiliate?</th>
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[350px]">Final URL</th>
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[150px]">Notes</th>
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[80px]">Actions</th>
+                              <th className="text-left py-2 px-2 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[160px]">URL</th>
+                              <th className="text-left py-2 px-2 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[105px]">Source*</th>
+                              <th className="text-left py-2 px-2 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[105px]">Medium*</th>
+                              <th className="text-left py-2 px-2 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[120px]">Campaign*</th>
+                              <th className="text-left py-2 px-2 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[90px]">Term</th>
+                              <th className="text-center py-2 px-2 text-xs font-semibold text-stone-500 uppercase tracking-wide">HMI?</th>
+                              <th className="text-center py-2 px-2 text-xs font-semibold text-stone-500 uppercase tracking-wide">Copy URL</th>
+                              <th className="text-left py-2 px-2 text-xs font-semibold text-stone-500 uppercase tracking-wide min-w-[110px]">Notes</th>
+                              <th className="py-2 px-2"></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -585,61 +593,61 @@
                               const finalUrl = generateFinalUrl(campaign);
                               return (
                                 <tr key={campaign.id} className="border-b border-stone-100 hover:bg-orange-50 transition-colors">
-                                  <td className="py-3 px-4">
+                                  <td className="py-2 px-2">
                                     <input
                                       type="url"
                                       value={campaign.url}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'url', e.target.value)}
                                       placeholder="https://example.com"
-                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                      className="w-full p-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                   </td>
-                                  <td className="py-3 px-4">
+                                  <td className="py-2 px-2">
                                     <select
                                       value={campaign.source}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'source', e.target.value)}
-                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                      className="w-full p-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     >
-                                      <option value="">Select source</option>
+                                      <option value="">Select s</option>
                                       {settings.sources.map(source => (
                                         <option key={source} value={source}>{source}</option>
                                       ))}
                                     </select>
                                   </td>
-                                  <td className="py-3 px-4">
+                                  <td className="py-2 px-2">
                                     <select
                                       value={campaign.medium}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'medium', e.target.value)}
-                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                      className="w-full p-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     >
-                                      <option value="">Select medium</option>
+                                      <option value="">Select m</option>
                                       {settings.mediums.map(medium => (
                                         <option key={medium} value={medium}>{medium}</option>
                                       ))}
                                     </select>
                                   </td>
-                                  <td className="py-3 px-4">
+                                  <td className="py-2 px-2">
                                     <select
                                       value={campaign.campaign}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'campaign', e.target.value)}
-                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                      className="w-full p-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     >
-                                      <option value="">Select campaign</option>
+                                      <option value="">Select c</option>
                                       {settings.campaigns.map(campaignOption => (
                                         <option key={campaignOption} value={campaignOption}>{campaignOption}</option>
                                       ))}
                                     </select>
                                   </td>
-                                  <td className="py-3 px-4">
+                                  <td className="py-2 px-2">
                                     <input
                                       type="text"
                                       value={campaign.term}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'term', e.target.value)}
                                       placeholder="keyword"
-                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                      className="w-full p-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                   </td>
-                                  <td className="py-3 px-4">
+                                  <td className="py-2 px-2">
                                     <div className="flex justify-center">
                                       <input
                                         type="checkbox"
@@ -649,35 +657,29 @@
                                       />
                                     </div>
                                   </td>
-                                  <td className="py-3 px-4">
-                                    {finalUrl && (
-                                      <div className="flex items-center gap-2">
-                                        <div className="flex-1 p-2 bg-orange-50 rounded-lg text-sm font-mono text-orange-700 truncate border border-orange-100">
-                                          {finalUrl}
-                                        </div>
-                                        <button
-                                          onClick={() => copyToClipboard(finalUrl)}
-                                          className="p-2 text-orange-400 hover:text-orange-600 transition-colors flex-shrink-0"
-                                          title="Copy Final URL"
-                                        >
-                                          <Copy className="w-4 h-4" />
-                                        </button>
-                                      </div>
-                                    )}
+                                  <td className="py-2 px-2 text-center">
+                                    <button
+                                      onClick={() => finalUrl && copyToClipboard(finalUrl)}
+                                      disabled={!finalUrl}
+                                      className="p-1.5 text-orange-400 hover:text-orange-600 disabled:text-stone-200 transition-colors"
+                                      title={finalUrl || 'Fill required fields first'}
+                                    >
+                                      <Copy className="w-4 h-4" />
+                                    </button>
                                   </td>
-                                  <td className="py-3 px-4">
+                                  <td className="py-2 px-2">
                                     <input
                                       type="text"
                                       value={campaign.notes}
                                       onChange={(e) => updateCampaign(activeTab, campaign.id, 'notes', e.target.value)}
                                       placeholder="Notes..."
-                                      className="w-full p-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                      className="w-full p-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                   </td>
-                                  <td className="py-3 px-4">
+                                  <td className="py-2 px-2">
                                     <button
                                       onClick={() => deleteCampaign(activeTab, campaign.id)}
-                                      className="p-2 text-stone-400 hover:text-red-500 transition-colors"
+                                      className="p-1.5 text-stone-400 hover:text-red-500 transition-colors"
                                       title="Delete Campaign"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -696,7 +698,8 @@
                 {/* Settings Modal */}
                 {showSettings && (
                   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl shadow-2xl border border-stone-100 p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-stone-100 w-full max-w-4xl max-h-[85vh] flex flex-col">
+                      <div className="p-6 overflow-y-auto flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <h2 className="text-xl font-bold text-stone-900">Traffic Tag Settings</h2>
                         <button
@@ -711,6 +714,12 @@
                       <p className="text-stone-500 text-sm mb-6">
                         Customize the source, medium, and campaign options that appear in your dropdowns.
                       </p>
+                      {settingsError && (
+                        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-start gap-2">
+                          <span className="font-medium">Save failed:</span>
+                          <span>{settingsError}</span>
+                        </div>
+                      )}
 
                       <div className="grid md:grid-cols-3 gap-6">
                         {/* Sources */}
@@ -825,27 +834,34 @@
                         </div>
                       </div>
 
-                      <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-stone-100">
+                      </div>{/* end scrollable content */}
+                      <div className="flex justify-end gap-3 px-6 py-4 border-t border-stone-100 flex-shrink-0">
                         <button
-                          onClick={() => setShowSettings(false)}
+                          onClick={() => { setShowSettings(false); setSettingsError(null); }}
                           className="px-6 py-2.5 text-stone-500 hover:text-stone-700 font-medium text-sm transition-colors"
                         >
                           Cancel
                         </button>
                         <button
+                          disabled={isSavingSettings}
                           onClick={async () => {
+                            setIsSavingSettings(true);
+                            setSettingsError(null);
                             try {
                               await saveSettings(settings);
                               setShowSettings(false);
                               setLastSaved(new Date());
                               showToast('Settings saved successfully!', 'success');
                             } catch (error) {
-                              showToast('Failed to save settings. Please try again.', 'error');
+                              setSettingsError(error.message || 'Please try again.');
+                              showToast('Failed to save settings.', 'error');
+                            } finally {
+                              setIsSavingSettings(false);
                             }
                           }}
-                          className="px-8 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-medium text-sm transition-colors shadow-sm"
+                          className="px-8 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white rounded-full font-medium text-sm transition-colors shadow-sm"
                         >
-                          Save Settings
+                          {isSavingSettings ? 'Saving...' : 'Save Settings'}
                         </button>
                       </div>
                     </div>
