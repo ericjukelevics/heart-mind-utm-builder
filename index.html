@@ -386,10 +386,15 @@
                 if (backupResp.ok) backup = await backupResp.json();
               } catch (e) {}
 
-              await fetch(`${SUPABASE_URL}/rest/v1/settings?type=neq.null`, {
+              const deleteResp = await fetch(`${SUPABASE_URL}/rest/v1/settings?type=neq.null`, {
                 method: 'DELETE',
                 headers: { ...authHeaders, 'Prefer': 'return=minimal' }
               });
+              if (!deleteResp.ok) {
+                let delErr = `DELETE HTTP ${deleteResp.status}`;
+                try { const b = await deleteResp.json(); delErr = b.message || b.hint || b.details || delErr; } catch(e) {}
+                throw new Error(delErr);
+              }
 
               const settingsArray = [];
               cleanSettings.sources.forEach(source => settingsArray.push({ type: 'source', value: source.trim() }));
@@ -399,20 +404,22 @@
               if (settingsArray.length > 0) {
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
                   method: 'POST',
-                  headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                  headers: { ...authHeaders, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
                   body: JSON.stringify(settingsArray)
                 });
 
                 if (!response.ok) {
+                  let errMsg = `HTTP ${response.status}`;
+                  try { const b = await response.json(); errMsg = b.message || b.hint || b.details || errMsg; } catch(e) {}
                   if (backup.length > 0) {
                     const restoredBackup = backup.map(({ type, value }) => ({ type, value }));
                     await fetch(`${SUPABASE_URL}/rest/v1/settings`, {
                       method: 'POST',
-                      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                      headers: { ...authHeaders, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
                       body: JSON.stringify(restoredBackup)
                     });
                   }
-                  throw new Error(`Settings save failed: ${response.statusText}`);
+                  throw new Error(errMsg);
                 }
               }
 
